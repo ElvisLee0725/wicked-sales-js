@@ -19,6 +19,7 @@ app.get('/api/health-check', (req, res, next) => {
     .catch(err => next(err));
 });
 
+// User can view all products
 app.get('/api/products', (req, res, next) => {
   db.query('SELECT * FROM "products";')
     .then(result => {
@@ -28,6 +29,31 @@ app.get('/api/products', (req, res, next) => {
       });
 
       res.status(200).json(data);
+    })
+    .catch(err => {
+      next(err);
+    });
+});
+
+// User can view the details of a single product
+app.get('/api/products/:productId', (req, res, next) => {
+  const { productId } = req.params;
+  if (isNaN(productId) || productId < 0) {
+    return next(new ClientError('The productId should be a positive integer', 400));
+  }
+
+  db.query(`
+    SELECT * 
+    FROM "products"
+    WHERE "productId" = $1
+    `, [productId])
+    .then(result => {
+      // Return 404 if the product id is not found
+      if (result.rows.length === 0) {
+        next(new ClientError(`The productId '${productId}' does not exist.`, 404));
+      } else {
+        res.status(200).json(result.rows[0]);
+      }
     })
     .catch(err => {
       next(err);
