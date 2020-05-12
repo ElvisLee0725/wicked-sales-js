@@ -60,6 +60,111 @@ app.get('/api/products/:productId', (req, res, next) => {
     });
 });
 
+// GET endpoint for /api/cart
+app.get('/api/cart', (req, res, next) => {
+  // Case 1: req.session.cartId doesn't exist, return empty array:
+  if (!req.session.cartId) {
+    res.json([]);
+  } else {
+    // Case 2: Get all items that user has added to cart with the cartId:
+    db.query(`
+      SELECT "c"."cartItemId",
+             "c"."price",
+             "p"."productId",
+             "p"."image",
+             "p"."name",
+             "p"."shortDescription"
+      FROM "cartItems" AS "c"
+      JOIN "products" AS "p" USING ("productId")
+      WHERE "c"."cartId" = $1
+    `, [req.session.cartId])
+      .then(result => {
+        res.status(200).json(result.rows);
+      })
+      .catch(err => {
+        next(err);
+      });
+  }
+
+});
+
+// POST endpoint for /api/cart. User can add a cart and cartItem
+app.post('/api/cart', (req, res, next) => {
+  const { productId } = req.body;
+  if (isNaN(productId) || productId < 0) {
+    return next(new ClientError('The productId should be a positive integer', 400));
+  }
+
+  db.query(`
+    SELECT "price"
+    FROM "products"
+    WHERE "productId" = $1;
+  `, [productId])
+    .then(result => {
+      // Return 400 if that productId is not found
+      if (result.rows.length === 0) {
+        throw new ClientError(`The price with productId '${productId}' cannot be found.`, 400);
+      } else {
+        const price = result.rows[0].price;
+
+        // Use return to pass cartId and price to next .then()
+        return db.query(`
+          INSERT INTO "carts" ("cartId", "createdAt")
+          VALUES (default, default)
+          RETURNING "cartId";
+        `).then(result => {
+          const data = {
+            cartId: result.rows[0].cartId,
+            price
+          };
+          return data;
+        }).catch(err => {
+          next(err);
+        });
+      }
+    })
+    .then(data => {
+      req.session.cartId = data.cartId;
+
+      // Use return to pass cartItemId to the next .then() after insert
+      return db.query(`
+        INSERT INTO "cartItems" ("cartId", "productId", "price")
+        VALUES ($1, $2, $3)
+        RETURNING "cartItemId";
+      `, [data.cartId, productId, data.price])
+        .then(result => {
+          return result.rows[0].cartItemId;
+        })
+        .catch(err => {
+          next(err);
+        });
+    })
+    .then(cartItemId => {
+      // Get columns of a certain cartItemId
+      db.query(`
+        SELECT "c"."cartItemId",
+                "c"."price",
+                "p"."productId",
+                "p"."image",
+                "p"."name",
+                "p"."shortDescription"
+        FROM "cartItems" AS "c"
+        JOIN "products" AS "p" USING ("productId")
+        WHERE "c"."cartItemId" = $1;
+      `, [cartItemId])
+        .then(result => {
+          // Respond 201 with the cart item
+          res.status(201).json(result.rows[0]);
+        })
+        .catch(err => {
+          next(err);
+        });
+    })
+    .catch(err => {
+      next(err);
+    });
+});
+
 app.use('/api', (req, res, next) => {
   next(new ClientError(`cannot ${req.method} ${req.originalUrl}`, 404));
 });
