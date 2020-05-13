@@ -4,6 +4,7 @@ class ProductDetails extends React.Component {
   constructor(props) {
     super(props);
     this.handleBackToCatalog = this.handleBackToCatalog.bind(this);
+    this.handleAddToCart = this.handleAddToCart.bind(this);
     this.state = {
       product: null
     };
@@ -28,6 +29,11 @@ class ProductDetails extends React.Component {
     this.props.setView('catalog', {});
   }
 
+  handleAddToCart() {
+    const { productId } = this.state.product;
+    this.props.addToCart(productId);
+  }
+
   render() {
     const { product } = this.state;
     return product && (
@@ -47,6 +53,7 @@ class ProductDetails extends React.Component {
                 <h5 className="card-title">{product.name}</h5>
                 <h6 className="card-subtitle mb-2 text-muted">${product.price / 100}</h6>
                 <p className="card-text">{product.shortDescription}</p>
+                <button className="btn btn-primary" onClick={this.handleAddToCart}>Add to Cart</button>
               </div>
             </div>
             <div className="col-12">
