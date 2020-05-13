@@ -88,7 +88,7 @@ app.get('/api/cart', (req, res, next) => {
 
 });
 
-// POST endpoint for /api/cart. User can add a cart and cartItem
+// POST endpoint for /api/cart. User can add a cart and cartItems into the cart
 app.post('/api/cart', (req, res, next) => {
   const { productId } = req.body;
   if (isNaN(productId) || productId < 0) {
@@ -107,20 +107,27 @@ app.post('/api/cart', (req, res, next) => {
       } else {
         const price = result.rows[0].price;
 
-        // Use return to pass cartId and price to next .then()
-        return db.query(`
-          INSERT INTO "carts" ("cartId", "createdAt")
-          VALUES (default, default)
-          RETURNING "cartId";
-        `).then(result => {
-          const data = {
-            cartId: result.rows[0].cartId,
+        // Use return to pass cartId and price to the next .then()
+        // Only insert new cartId when the session has no cartId currently; Otherwise, just use the current cartId
+        if (!req.session.cartId) {
+          return db.query(`
+            INSERT INTO "carts" ("cartId", "createdAt")
+            VALUES (default, default)
+            RETURNING "cartId";
+          `).then(result => {
+            return {
+              cartId: result.rows[0].cartId,
+              price
+            };
+          }).catch(err => {
+            next(err);
+          });
+        } else {
+          return {
+            cartId: req.session.cartId, // Use the same cartId in the same session
             price
           };
-          return data;
-        }).catch(err => {
-          next(err);
-        });
+        }
       }
     })
     .then(data => {
@@ -140,7 +147,7 @@ app.post('/api/cart', (req, res, next) => {
         });
     })
     .then(cartItemId => {
-      // Get columns of a certain cartItemId
+      // Get columns of the cartItemId which is just added to cart
       db.query(`
         SELECT "c"."cartItemId",
                 "c"."price",

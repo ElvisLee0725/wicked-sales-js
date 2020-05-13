@@ -2,3 +2,9 @@
     background-color: #fff;
     border-bottom: none;
 }
+
+.nothing-in-cart {
+    padding: 3rem 0;
+    text-align: center;
+    font-size: 2rem;
+}
