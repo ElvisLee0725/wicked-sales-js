@@ -172,6 +172,37 @@ app.post('/api/cart', (req, res, next) => {
     });
 });
 
+// POST endpoint for /api/orders to create an order
+app.post('/api/orders', (req, res, next) => {
+  // Respond error 400 if the cart id doesn't exist.
+  if (!req.session.cartId) {
+    return next(new ClientError('The cartId is not found in session.', 400));
+  }
+
+  // Confirm name, credit card and shipping address are well-received.
+  const { name, creditCard, shippingAddress } = req.body;
+  if (!name || !creditCard || !shippingAddress) {
+    return next(new ClientError('Please confirm name, credit card, and shipping address are all sent', 400));
+  }
+
+  db.query(`
+    INSERT INTO "orders" ("cartId", "name", "creditCard", "shippingAddress")
+    VALUES ($1, $2, $3, $4)
+    RETURNING "orderId", "createdAt", "name", "creditCard", "shippingAddress";
+  `, [req.session.cartId, name, creditCard, shippingAddress])
+    .then(result => {
+      // Delete cartId from req.session if order was creadted successfully
+      if (result.rows.length > 0) {
+        delete req.session.cartId;
+      }
+      // Respond with code 201 and orderId, createdAt, name, creditCard, and shippingAddress
+      res.status(201).json(result.rows[0]);
+    })
+    .catch(err => {
+      next(err);
+    });
+});
+
 app.use('/api', (req, res, next) => {
   next(new ClientError(`cannot ${req.method} ${req.originalUrl}`, 404));
 });
